@@ -1,8 +1,8 @@
 
 function req() {
     index=$1
-    json='{"link":"'$index'https://reallreaasdfjakl;fdjksal;fdjsakl;fdjsakfl;adsllreallreallreallreallrealylloooooooooooooooooooooooooooooooooooooooooooooooooongggurtlllllllll.com/'$index'"}'
-    curl --location --request GET '8080.pond.audio/insert' \
+    json='{"link": "https://bbc.co.uk"}'
+    curl --location --request POST '8080.pond.audio/insert' \
       --header 'Content-Type: application/json' \
       --data-raw "$json"
 }

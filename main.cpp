@@ -18,7 +18,6 @@ template <int NBits, typename T> constexpr auto leastNBitsMask() {
 }
 
 constexpr auto HOME_TEMPLATE_HTML = R"(
-
 <!DOCTYPE html>
 <html>
   <head>
@@ -33,7 +32,7 @@ constexpr auto HOME_TEMPLATE_HTML = R"(
     </form>
     <div id="result" hidden>
       <h3>Your shortened link:</h3>
-      <p id="shortenedLink"></p>
+      <a id="shortenedLink"></a>
     </div>
 
     <script>
@@ -66,9 +65,9 @@ constexpr auto HOME_TEMPLATE_HTML = R"(
 
 #include <zoo/map/RobinHood.h>
 
-using FromType = uint64_t;
+using FromType = uint32_t;
 using ToType = std::string;
-constexpr auto MapSize = 1 << 17;
+constexpr auto MapSize = 1 << 23;
 constexpr auto PSLBits = 5;
 constexpr auto HashBits = 3;
 using Json = crow::json::wvalue;
@@ -100,7 +99,7 @@ constexpr auto from_hex_string(const std::string_view &str) {
   uint64_t result = 0;
   auto size = str.size();
   if (size > 16) {
-    throw std::runtime_error("Invalid hex string");
+    throw std::runtime_error("Invalid hex string: " + std::string{str});
   }
 
   constexpr auto is_number = [](char c) { return c >= '0' && c <= '9'; };
@@ -152,7 +151,10 @@ constexpr auto is_link_valid(const std::string &link) {
 int main() {
   crow::SimpleApp app;
   std::atomic<uint64_t> current_id = 0;
-  ZooMap<uint64_t, std::string> links{};
+
+  auto links = std::unique_ptr<ZooMap<FromType, ToType>>{
+      new ZooMap<FromType, ToType>{}};
+
   std::shared_mutex links_mutex;
 
   auto id = current_id.load();
@@ -176,7 +178,7 @@ int main() {
     }
 
     std::lock_guard<std::shared_mutex> lock{links_mutex};
-    links.insert(std::pair{id, link});
+    links->insert(std::pair{id, link});
 
     auto current_string = to_hex_string(id);
     auto short_link = std::string{OUR_DOMAIN} + current_string;
@@ -191,15 +193,18 @@ int main() {
   ([&](const crow::request &req, const std::string &hex) {
     auto id = from_hex_string(hex);
     std::shared_lock<std::shared_mutex> lock{links_mutex};
-    auto it = links.find(id);
+    auto it = links->find(id);
 
-    if (it == links.end()) {
+    if (it == links->end()) {
       return crow::response{404};
     }
 
     auto link = it->second;
 
-    return crow::response{Json{{"link", link}}};
+    // redirect to the original link
+    auto res = crow::response{};
+    res.redirect(link);
+    return res;
   });
 
   app.port(8080).run();
