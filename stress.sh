@@ -1,4 +1,3 @@
-
 function req() {
     index=$1
     json='{"link": "https://bbc.co.uk"}'
@@ -6,7 +5,6 @@ function req() {
       --header 'Content-Type: application/json' \
       --data-raw "$json"
 }
-
 
 for i in {1..32000}
 do

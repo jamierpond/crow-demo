@@ -1,6 +1,9 @@
+
 #include "crow.h"
 #include <cstdint>
+#include <regex>
 #include <shared_mutex>
+#include <string>
 
 // This is placed ahead of other bare manipulation functions to reduce integer
 // promotion weirdness in the constant creation of SWAR and related.
@@ -48,13 +51,17 @@ constexpr auto HOME_TEMPLATE_HTML = R"(
             })
           });
 
+          if (!response.ok) {
+            console.error('Error:', response);
+            throw new Error(response.data);
+          }
           const data = await response.json();
 
           document.getElementById('shortenedLink').textContent = data.short_link;
           document.getElementById('result').hidden = false;
         } catch (error) {
           console.error('Error:', error);
-          alert('An error occurred while shortening the link');
+          alert('An error occurred while shortening the link' + error.message);
         }
       });
     </script>
@@ -139,21 +146,22 @@ template <typename From, typename To>
 using ZooMap =
     zoo::rh::RH_Frontend_WithSkarupkeTail<From, To, MapSize, PSLBits, HashBits>;
 
-constexpr std::string_view OUR_DOMAIN = "http://8080.pond.audio/";
+constexpr std::string_view OUR_DOMAIN = "https://8080.pond.audio/";
 
-constexpr auto is_link_valid(const std::string &link) {
-  // todo implement a proper link validation, maybe with checking also
-  // if the link returns application/html content type, with a 200 status code
-  // and less than 2s timeout
-  return true;
+auto is_link_valid(const std::string &link) {
+  static const std::regex url_regex(R"(^(https?:\/\/)?)" // Protocol (optional)
+                                    R"([\w\-]+(\.[\w\-]+)+)" // Domain
+                                    R"([^\s]*$)");           // Rest of URL
+
+  return std::regex_match(link, url_regex);
 }
 
 int main() {
   crow::SimpleApp app;
   std::atomic<uint64_t> current_id = 0;
 
-  auto links = std::unique_ptr<ZooMap<FromType, ToType>>{
-      new ZooMap<FromType, ToType>{}};
+  auto links =
+      std::unique_ptr<ZooMap<FromType, ToType>>{new ZooMap<FromType, ToType>{}};
 
   std::shared_mutex links_mutex;
 
@@ -161,50 +169,60 @@ int main() {
 
   std::cout << "Starting server" << std::endl;
 
-  CROW_ROUTE(app, "/insert").methods("POST"_method)
-  ([&](const crow::request &req) {
-    auto id = current_id.load();
-    current_id++;
+  CROW_ROUTE(app, "/insert")
+      .methods("POST"_method)([&](const crow::request &req) {
+        auto id = current_id.load();
+        current_id++;
 
-    if (id >= MapSize) {
-      return crow::response{500};
-    }
+        if (id >= MapSize) {
+          return crow::response{500, "Server is full"};
+        }
 
-    auto json = crow::json::load(req.body);
-    auto link = std::string{json["link"].s()};
+        auto json = crow::json::load(req.body);
+        if (!json) {
+          return crow::response{400, "Invalid JSON"};
+        }
+        if (!json.has("link")) {
+          return crow::response{400, "Missing link"};
+        }
+        auto link = std::string{json["link"].s()};
 
-    if (!is_link_valid(link)) {
-      return crow::response{400};
-    }
+        if (!is_link_valid(link)) {
+          return crow::response{400, "Invalid link"};
+        }
 
-    std::lock_guard<std::shared_mutex> lock{links_mutex};
-    links->insert(std::pair{id, link});
+        std::lock_guard<std::shared_mutex> lock{links_mutex};
+        links->insert(std::pair{id, link});
 
-    auto current_string = to_hex_string(id);
-    auto short_link = std::string{OUR_DOMAIN} + current_string;
+        auto current_string = to_hex_string(id);
+        auto short_link = std::string{OUR_DOMAIN} + current_string;
 
-    return crow::response{Json{{"short_link", short_link}}};
-  });
+        return crow::response{Json{{"short_link", short_link}}};
+      });
 
   CROW_ROUTE(app, "/")
   ([&]() { return HOME_TEMPLATE_HTML; });
 
   CROW_ROUTE(app, "/<string>")
   ([&](const crow::request &req, const std::string &hex) {
-    auto id = from_hex_string(hex);
-    std::shared_lock<std::shared_mutex> lock{links_mutex};
-    auto it = links->find(id);
+    try {
+      auto id = from_hex_string(hex);
+      std::shared_lock<std::shared_mutex> lock{links_mutex};
+      auto it = links->find(id);
 
-    if (it == links->end()) {
-      return crow::response{404};
+      if (it == links->end()) {
+        return crow::response{404, "Not found"};
+      }
+
+      auto link = it->second;
+
+      // redirect to the original link
+      auto res = crow::response{};
+      res.redirect(link);
+      return res;
+    } catch (const std::runtime_error &e) {
+      return crow::response{500, e.what()};
     }
-
-    auto link = it->second;
-
-    // redirect to the original link
-    auto res = crow::response{};
-    res.redirect(link);
-    return res;
   });
 
   app.port(8080).run();
