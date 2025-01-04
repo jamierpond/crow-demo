@@ -1,7 +1,6 @@
 #include <cstdint>
 #include <iostream>
 #include <thread>
-#include <unordered_map>
 
 /**
  * Looks like this has been removed from the lib accidentally.
@@ -56,7 +55,7 @@ void do_thing() {
   }
 
   auto link = links.find(id);
-  std::cout << "Link: " << link->second << std::endl;
+  std::printf("Link: %s\n", link->second.c_str());
 }
 
 int main() {
