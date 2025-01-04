@@ -1,5 +1,6 @@
 #include "crow.h"
 #include <cstdint>
+#include <shared_mutex>
 
 // This is placed ahead of other bare manipulation functions to reduce integer
 // promotion weirdness in the constant creation of SWAR and related.
@@ -20,7 +21,7 @@ template <int NBits, typename T> constexpr auto leastNBitsMask() {
 
 using FromType = uint64_t;
 using ToType = std::string;
-constexpr auto MapSize = 1 << 15;
+constexpr auto MapSize = 1 << 17;
 constexpr auto PSLBits = 5;
 constexpr auto HashBits = 3;
 
@@ -104,7 +105,9 @@ int main() {
   crow::SimpleApp app;
   std::atomic<uint64_t> current_id = 0;
   ZooMap<uint64_t, std::string> links{};
-  std::mutex links_mutex;
+  std::shared_mutex links_mutex;
+
+  std::vector<std::pair<uint64_t, std::string>> links_to_insert;
 
   auto id = current_id.load();
 
@@ -128,8 +131,7 @@ int main() {
       return std::string{"Invalid link"};
     }
 
-    std::lock_guard<std::mutex> lock{links_mutex};
-    std::cout << "Inserting " << id << " " << link << std::endl;
+    std::lock_guard<std::shared_mutex> lock{links_mutex};
     links.insert(std::pair{id, link});
 
     auto current_string = to_hex_string(id);
@@ -142,9 +144,9 @@ int main() {
   ([&]() { return "hello"; });
 
   CROW_ROUTE(app, "/<string>")
-  ([&](const crow::request &req, const std::string& hex) {
+  ([&](const crow::request &req, const std::string &hex) {
     auto id = from_hex_string(hex);
-    std::lock_guard<std::mutex> lock{links_mutex};
+    std::shared_lock<std::shared_mutex> lock{links_mutex};
     auto it = links.find(id);
 
     if (it == links.end()) {
