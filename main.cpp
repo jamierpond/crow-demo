@@ -17,6 +17,53 @@ template <int NBits, typename T> constexpr auto leastNBitsMask() {
   }
 }
 
+constexpr auto HOME_TEMPLATE_HTML = R"(
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Shorten your link</title>
+  </head>
+  <body>
+    <h1>Shorten your link</h1>
+    <form id="shortenForm">
+      <label for="link">Link:</label>
+      <input type="text" id="link" name="link" required>
+      <input type="submit" value="Submit">
+    </form>
+    <div id="result" hidden>
+      <h3>Your shortened link:</h3>
+      <p id="shortenedLink"></p>
+    </div>
+
+    <script>
+      document.getElementById('shortenForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        try {
+          const response = await fetch('/insert', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              "link": document.getElementById('link').value
+            })
+          });
+
+          const data = await response.json();
+
+          document.getElementById('shortenedLink').textContent = data.short_link;
+          document.getElementById('result').hidden = false;
+        } catch (error) {
+          console.error('Error:', error);
+          alert('An error occurred while shortening the link');
+        }
+      });
+    </script>
+  </body>
+</html>
+
+)";
+
 #include <zoo/map/RobinHood.h>
 
 using FromType = uint64_t;
@@ -24,6 +71,7 @@ using ToType = std::string;
 constexpr auto MapSize = 1 << 17;
 constexpr auto PSLBits = 5;
 constexpr auto HashBits = 3;
+using Json = crow::json::wvalue;
 
 constexpr auto to_hex_string(uint64_t value) {
   std::string result;
@@ -92,7 +140,7 @@ template <typename From, typename To>
 using ZooMap =
     zoo::rh::RH_Frontend_WithSkarupkeTail<From, To, MapSize, PSLBits, HashBits>;
 
-constexpr std::string_view OUR_DOMAIN = "http://localhost:8080/";
+constexpr std::string_view OUR_DOMAIN = "http://8080.pond.audio/";
 
 constexpr auto is_link_valid(const std::string &link) {
   // todo implement a proper link validation, maybe with checking also
@@ -107,41 +155,37 @@ int main() {
   ZooMap<uint64_t, std::string> links{};
   std::shared_mutex links_mutex;
 
-  std::vector<std::pair<uint64_t, std::string>> links_to_insert;
-
   auto id = current_id.load();
 
   std::cout << "Starting server" << std::endl;
 
-  CROW_ROUTE(app, "/insert")
+  CROW_ROUTE(app, "/insert").methods("POST"_method)
   ([&](const crow::request &req) {
     auto id = current_id.load();
     current_id++;
 
     if (id >= MapSize) {
-      // todo real error handling
-      return std::string{"Map is full"};
+      return crow::response{500};
     }
 
     auto json = crow::json::load(req.body);
     auto link = std::string{json["link"].s()};
 
     if (!is_link_valid(link)) {
-      // todo real error handling
-      return std::string{"Invalid link"};
+      return crow::response{400};
     }
 
     std::lock_guard<std::shared_mutex> lock{links_mutex};
     links.insert(std::pair{id, link});
 
     auto current_string = to_hex_string(id);
-    auto short_link = std::string{OUR_DOMAIN} + current_string + "\n";
+    auto short_link = std::string{OUR_DOMAIN} + current_string;
 
-    return short_link;
+    return crow::response{Json{{"short_link", short_link}}};
   });
 
   CROW_ROUTE(app, "/")
-  ([&]() { return "hello"; });
+  ([&]() { return HOME_TEMPLATE_HTML; });
 
   CROW_ROUTE(app, "/<string>")
   ([&](const crow::request &req, const std::string &hex) {
@@ -150,11 +194,12 @@ int main() {
     auto it = links.find(id);
 
     if (it == links.end()) {
-      // todo real error handling
-      return std::string{"Link not found"};
+      return crow::response{404};
     }
 
-    return it->second;
+    auto link = it->second;
+
+    return crow::response{Json{{"link", link}}};
   });
 
   app.port(8080).run();
