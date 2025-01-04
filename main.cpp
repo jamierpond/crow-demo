@@ -67,7 +67,6 @@ constexpr auto HOME_TEMPLATE_HTML = R"(
     </script>
   </body>
 </html>
-
 )";
 
 #include <zoo/map/RobinHood.h>
@@ -157,7 +156,13 @@ auto is_link_valid(const std::string &link) {
 }
 
 int main() {
-  crow::SimpleApp app;
+  crow::SimpleApp app{};
+  // Set connection timeout and keep alive explicitly
+  app.timeout(3);  // 15 second timeout
+  app.concurrency(std::numeric_limits<std::uint16_t>::max() - 1);
+
+  app.loglevel(crow::LogLevel::Debug);
+
   std::atomic<uint64_t> current_id = 0;
 
   auto links =
@@ -166,8 +171,6 @@ int main() {
   std::shared_mutex links_mutex;
 
   auto id = current_id.load();
-
-  std::cout << "Starting server" << std::endl;
 
   CROW_ROUTE(app, "/insert")
       .methods("POST"_method)([&](const crow::request &req) {

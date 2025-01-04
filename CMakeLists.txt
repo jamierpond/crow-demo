@@ -13,7 +13,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # debug mode
 set(CMAKE_BUILD_TYPE Debug)
 
-
 # Configure sanitizers if enabled
 if(USE_ASAN)
     message(STATUS "Enabling Address Sanitizer")
