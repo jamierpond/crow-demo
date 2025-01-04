@@ -65,7 +65,7 @@ int main() {
   do_thing<std::unordered_map<FromType, ToType>, ThreadPolicy::WorkerThread>();
   do_thing<ZooMap<FromType, ToType>, ThreadPolicy::MainThread>();
 
-  // explodes :(
+  // explodes, on arm64, m1 mac
   do_thing<ZooMap<FromType, ToType>, ThreadPolicy::WorkerThread>();
 }
 
