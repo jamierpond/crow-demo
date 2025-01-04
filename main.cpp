@@ -1,9 +1,12 @@
-#include "crow.h"
 #include <cstdint>
+#include <iostream>
 #include <thread>
+#include <unordered_map>
 
-// This is placed ahead of other bare manipulation functions to reduce integer
-// promotion weirdness in the constant creation of SWAR and related.
+/**
+ * Looks like this has been removed from the lib accidentally.
+ * Adding here for visibility and convenience.
+ * */
 template <int NBits, typename T> constexpr auto leastNBitsMask() {
   // It was integer promotion screwing this up at equal sizes all along, special
   // casing unblocks.
@@ -25,79 +28,44 @@ constexpr auto MapSize = 1 << 8;
 constexpr auto PSLBits = 5;
 constexpr auto HashBits = 3;
 
+
 template <typename From, typename To>
 using ZooMap =
     zoo::rh::RH_Frontend_WithSkarupkeTail<From, To, MapSize, PSLBits, HashBits>;
 
-constexpr std::string_view OUR_DOMAIN = "http://localhost:8080/";
 
-constexpr auto is_link_valid(const std::string &link) {
-  // todo implement a proper link validation, maybe with checking also
-  // if the link returns application/html content type, with a 200 status code
-  // and less than 2s timeout
-  return true;
+enum class ThreadPolicy { MainThread, WorkerThread };
+
+template <typename Map, ThreadPolicy OnThread>
+void do_thing() {
+  Map links{};
+  auto id = 0;
+
+  auto perform_insert = [&] {
+    links.insert(std::pair{id, "cool link"});
+  };
+
+  switch (OnThread) {
+    case ThreadPolicy::MainThread:
+      perform_insert();
+      break;
+    case ThreadPolicy::WorkerThread:
+      auto t = std::thread{perform_insert};
+      t.join();
+      break;
+  }
+
+  auto link = links.find(id);
+  std::cout << "Link: " << link->second << std::endl;
 }
 
 int main() {
-  crow::SimpleApp app;
-  std::atomic<uint64_t> current_id = 0;
-  ZooMap<uint64_t, std::string> links{};
-  std::mutex links_mutex;
+  // totally fine!
+  do_thing<std::unordered_map<FromType, ToType>, ThreadPolicy::MainThread>();
+  do_thing<std::unordered_map<FromType, ToType>, ThreadPolicy::WorkerThread>();
+  do_thing<ZooMap<FromType, ToType>, ThreadPolicy::MainThread>();
 
-  auto id = current_id.load();
-
-  auto thread = std::thread([&] {
-    std::cout << "Inserting " << id << " " << "https://www.google.com" << std::endl;
-    auto json = crow::json::load("{\"link\":\"https://www.google.com\"}");
-    auto link = std::string{json["link"].s()};
-    std::lock_guard<std::mutex> lock{links_mutex};
-    links.insert(std::pair{id, link});
-  });
-
-  thread.join();
-
-  std::cout << "Starting server" << std::endl;
-
-  CROW_ROUTE(app, "/insert")
-  ([&](const crow::request &req) {
-    auto id = current_id.load();
-    current_id++;
-
-    if (id >= MapSize) {
-      // todo real error handling
-      return std::string{"Map is full"};
-    }
-
-    auto json = crow::json::load(req.body);
-    auto link = std::string{json["link"].s()};
-
-    if (!is_link_valid(link)) {
-      // todo real error handling
-      return std::string{"Invalid link"};
-    }
-
-    std::lock_guard<std::mutex> lock{links_mutex};
-    std::cout << "Inserting " << id << " " << link << std::endl;
-    links.insert(std::pair{id, link});
-
-    auto current_string = std::to_string(id);
-    auto short_link = std::string{OUR_DOMAIN} + current_string;
-
-    return short_link;
-  });
-
-  CROW_ROUTE(app, "/<uint>")
-  ([&](const crow::request &req, uint64_t id) {
-    std::lock_guard<std::mutex> lock{links_mutex};
-    auto it = links.find(id);
-
-    if (it == links.end()) {
-      // todo real error handling
-      return std::string{"Link not found"};
-    }
-
-    return it->second;
-  });
-
-  app.port(8080).run();
+  // explodes :(
+  do_thing<ZooMap<FromType, ToType>, ThreadPolicy::WorkerThread>();
 }
+
