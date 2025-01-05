@@ -10,8 +10,8 @@ option(USE_MSAN "Enable Memory Sanitizer" OFF)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# debug mode
-set(CMAKE_BUILD_TYPE Debug)
+# # debug mode
+# set(CMAKE_BUILD_TYPE Debug)
 
 # Configure sanitizers if enabled
 if(USE_ASAN)

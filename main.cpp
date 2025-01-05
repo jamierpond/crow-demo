@@ -145,7 +145,7 @@ template <typename From, typename To>
 using ZooMap =
     zoo::rh::RH_Frontend_WithSkarupkeTail<From, To, MapSize, PSLBits, HashBits>;
 
-constexpr std::string_view OUR_DOMAIN = "https://8080.pond.audio/";
+constexpr std::string_view OUR_DOMAIN = "https://s.pond.audio/";
 
 auto is_link_valid(const std::string &link) {
   static const std::regex url_regex(R"(^(https?:\/\/)?)" // Protocol (optional)
@@ -157,19 +157,11 @@ auto is_link_valid(const std::string &link) {
 
 int main() {
   crow::SimpleApp app{};
-  // Set connection timeout and keep alive explicitly
-  app.timeout(3);  // 15 second timeout
-  app.concurrency(std::numeric_limits<std::uint16_t>::max() - 1);
-
-  app.loglevel(crow::LogLevel::Debug);
-
   std::atomic<uint64_t> current_id = 0;
+  using Map = ZooMap<FromType, ToType>;
 
-  auto links =
-      std::unique_ptr<ZooMap<FromType, ToType>>{new ZooMap<FromType, ToType>{}};
-
-  std::shared_mutex links_mutex;
-
+  auto links = std::unique_ptr<Map>{new Map{}};
+  auto links_mutex = std::shared_mutex{};
   auto id = current_id.load();
 
   CROW_ROUTE(app, "/insert")
@@ -228,5 +220,5 @@ int main() {
     }
   });
 
-  app.port(8081).run();
+  app.port(8080).run();
 }
