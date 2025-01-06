@@ -31,70 +31,75 @@ constexpr auto PSLBits = 5;
 constexpr auto HashBits = 3;
 using Json = crow::json::wvalue;
 
-// todo make base64/base62
-constexpr auto to_hex_string(uint64_t value) {
-  std::string result;
-  result.reserve(16);
-  for (int i = 0; i < 16; i++) {
-    auto nibble = (value >> (60 - i * 4)) & 0xF;
-    if (nibble < 10) {
-      result.push_back('0' + nibble);
-    } else {
-      result.push_back('a' + nibble - 10);
-    }
+struct Base62Encoding {
+  constexpr static std::string_view chars = "0123456789"
+                                            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                            "abcdefghijklmnopqrstuvwxyz";
+
+  constexpr static auto size() { return chars.size(); }
+};
+static_assert(Base62Encoding::size() == 62);
+
+static_assert(0b00000000'00111111 == 0x3f);
+static_assert(0b00000000'00111111 == 63);
+static_assert(0b00000000'00000000 == 0);
+
+template <typename Encoding>
+constexpr auto apply_encoding(uint64_t value) {
+  std::string result{};
+  result.reserve(8);
+
+  if (value == 0) {
+    return std::string{"0"};
   }
 
-  // trim leading zeros
-  while (result.size() > 1 && result[0] == '0') {
-    result.erase(0, 1);
+  auto multiple_of_base = 1;
+
+  // todo make associative iteration ?
+  while (value > 0) {
+    auto index = value % Encoding::size();
+    auto value_now = value * multiple_of_base;
+
+    result.push_back(Encoding::chars[index]);
+
+    value /= Encoding::size();
+    multiple_of_base *= Encoding::size();
   }
 
   return result;
 }
 
-// TODO MAKE THIS FUNCTION MORE EFFICIENT
-constexpr auto from_hex_string(const std::string_view &str) {
-  uint64_t result = 0;
-  auto size = str.size();
-  if (size > 16) {
-    throw std::runtime_error("Invalid hex string: " + std::string{str});
-  }
+template <typename Encoding>
+constexpr auto reverse_encoding(const std::string_view& str) {
+  auto multiple_of_base = 1;
+  auto result = 0;
+  auto base = Encoding::size();
 
-  constexpr auto is_number = [](char c) { return c >= '0' && c <= '9'; };
-  constexpr auto is_lower_case_letter = [](char c) {
-    return c >= 'a' && c <= 'f';
-  };
-  constexpr auto is_upper_case_letter = [](char c) {
-    return c >= 'A' && c <= 'F';
-  };
-
-  for (int i = 0; i < size; i++) {
+  for (int i = 0; i < str.size(); i++) {
     auto c = str[i];
-    uint64_t nibble;
-
-    if (is_number(c)) {
-      nibble = c - '0';
-    } else if (is_lower_case_letter(c)) {
-      nibble = c - 'a' + 10;
-    } else if (is_upper_case_letter(c)) {
-      nibble = c - 'A' + 10;
-    } else {
-      throw std::runtime_error("Invalid hex string");
+    auto index = Encoding::chars.find(c);
+    if (index == std::string::npos) {
+      throw std::runtime_error("Invalid character in string");
     }
 
-    result = (result << 4) | nibble;
+    result += index * multiple_of_base;
+    multiple_of_base *= base;
   }
+
   return result;
 }
 
-// TESTS
-static_assert(to_hex_string(0x1234567890abcdef) == "1234567890abcdef");
-static_assert(to_hex_string(0x0000000000000001) == "1");
-static_assert(from_hex_string("1234567890abcdef") == 0x1234567890abcdef);
-static_assert(from_hex_string("0000000000000001") == 0x0000000000000001);
-static_assert(from_hex_string("1") == 0x0000000000000001);
-static_assert(from_hex_string("f2") == 0x00000000000000f2);
-static_assert(from_hex_string("F2") == 0x00000000000000f2);
+static_assert(apply_encoding<Base62Encoding>(0x0000) == "0");
+static_assert(apply_encoding<Base62Encoding>(0x0001) == "1");
+static_assert(apply_encoding<Base62Encoding>(0x000A) == "A");
+static_assert(apply_encoding<Base62Encoding>(0x000f) == "F");
+static_assert(reverse_encoding<Base62Encoding>("F") == 0x000f);
+static_assert(apply_encoding<Base62Encoding>(Base62Encoding::size()) == "01");
+static_assert(apply_encoding<Base62Encoding>(Base62Encoding::size() + 1) == "11");
+static_assert(apply_encoding<Base62Encoding>(Base62Encoding::size() + 15) == "F1");
+static_assert(reverse_encoding<Base62Encoding>("01") == Base62Encoding::size());
+static_assert(reverse_encoding<Base62Encoding>("F1") == Base62Encoding::size() + 15);
+
 
 template <typename From, typename To>
 using ZooMap =
@@ -144,7 +149,7 @@ int main() {
         std::lock_guard<std::shared_mutex> lock{links_mutex};
         links->insert(std::pair{id, link});
 
-        auto current_string = to_hex_string(id);
+        auto current_string = apply_encoding<Base62Encoding>(id);
         auto short_link = std::string{OUR_DOMAIN} + current_string;
 
         return crow::response{Json{{"short_link", short_link}}};
@@ -156,7 +161,7 @@ int main() {
   CROW_ROUTE(app, "/<string>")
   ([&](const crow::request &req, const std::string &hex) {
     try {
-      auto id = from_hex_string(hex);
+      auto id = reverse_encoding<Base62Encoding>(hex);
       std::shared_lock<std::shared_mutex> lock{links_mutex};
       auto it = links->find(id);
 
