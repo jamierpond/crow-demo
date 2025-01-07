@@ -1,3 +1,4 @@
+#include "./encoding.hpp"
 #include "./home.hpp"
 #include "crow.h"
 #include <cstdint>
@@ -30,76 +31,6 @@ constexpr auto MapSize = 1 << 23;
 constexpr auto PSLBits = 5;
 constexpr auto HashBits = 3;
 using Json = crow::json::wvalue;
-
-struct Base62Encoding {
-  constexpr static std::string_view chars = "0123456789"
-                                            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                            "abcdefghijklmnopqrstuvwxyz";
-
-  constexpr static auto size() { return chars.size(); }
-};
-static_assert(Base62Encoding::size() == 62);
-
-static_assert(0b00000000'00111111 == 0x3f);
-static_assert(0b00000000'00111111 == 63);
-static_assert(0b00000000'00000000 == 0);
-
-template <typename Encoding>
-constexpr auto apply_encoding(uint64_t value) {
-  std::string result{};
-  result.reserve(8);
-
-  if (value == 0) {
-    return std::string{"0"};
-  }
-
-  auto multiple_of_base = 1;
-
-  // todo make associative iteration ?
-  while (value > 0) {
-    auto index = value % Encoding::size();
-    auto value_now = value * multiple_of_base;
-
-    result.push_back(Encoding::chars[index]);
-
-    value /= Encoding::size();
-    multiple_of_base *= Encoding::size();
-  }
-
-  return result;
-}
-
-template <typename Encoding>
-constexpr auto reverse_encoding(const std::string_view& str) {
-  auto multiple_of_base = 1;
-  auto result = 0;
-  auto base = Encoding::size();
-
-  for (int i = 0; i < str.size(); i++) {
-    auto c = str[i];
-    auto index = Encoding::chars.find(c);
-    if (index == std::string::npos) {
-      throw std::runtime_error("Invalid character in string");
-    }
-
-    result += index * multiple_of_base;
-    multiple_of_base *= base;
-  }
-
-  return result;
-}
-
-static_assert(apply_encoding<Base62Encoding>(0x0000) == "0");
-static_assert(apply_encoding<Base62Encoding>(0x0001) == "1");
-static_assert(apply_encoding<Base62Encoding>(0x000A) == "A");
-static_assert(apply_encoding<Base62Encoding>(0x000f) == "F");
-static_assert(reverse_encoding<Base62Encoding>("F") == 0x000f);
-static_assert(apply_encoding<Base62Encoding>(Base62Encoding::size()) == "01");
-static_assert(apply_encoding<Base62Encoding>(Base62Encoding::size() + 1) == "11");
-static_assert(apply_encoding<Base62Encoding>(Base62Encoding::size() + 15) == "F1");
-static_assert(reverse_encoding<Base62Encoding>("01") == Base62Encoding::size());
-static_assert(reverse_encoding<Base62Encoding>("F1") == Base62Encoding::size() + 15);
-
 
 template <typename From, typename To>
 using ZooMap =
