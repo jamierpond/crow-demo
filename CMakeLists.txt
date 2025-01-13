@@ -69,3 +69,6 @@ target_include_directories(CrowApp PRIVATE ${Crow_SOURCE_DIR}/include)
 target_include_directories(CrowApp PRIVATE ${zoo_SOURCE_DIR}/inc)
 target_compile_definitions(CrowApp PRIVATE -DZOO_USE_LEASTNBITSMASK)
 target_link_libraries(CrowApp PRIVATE Crow::Crow)
+
+# add -march=native
+target_compile_options(CrowApp PRIVATE -march=native)
