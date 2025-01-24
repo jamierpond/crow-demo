@@ -11,6 +11,11 @@ struct Base62Encoding {
   constexpr static auto size() { return chars.size(); }
 };
 
+struct HexEncoding {
+  constexpr static std::string_view chars = "0123456789ABCDEF";
+  constexpr static auto size() { return chars.size(); }
+};
+
 static_assert(Base62Encoding::size() == 62);
 static_assert(0b00000000'00111111 == 0x3f);
 static_assert(0b00000000'00111111 == 63);
@@ -26,29 +31,26 @@ template <typename CharacterSet> constexpr auto apply_encoding(uint64_t value) {
 
   auto multiple_of_base = 1;
 
-  // todo make associative iteration ?
   while (value > 0) {
     auto index = value % CharacterSet::size();
-    auto value_now = value * multiple_of_base;
-
     result.push_back(CharacterSet::chars[index]);
-
     value /= CharacterSet::size();
     multiple_of_base *= CharacterSet::size();
   }
 
-  return result;
+  return std::string{result.rbegin(), result.rend()};
 }
 
 template <typename CharacterSet>
 constexpr auto reverse_encoding(const std::string_view &str) {
-  auto multiple_of_base = 1;
-  auto result = 0;
+  uint64_t multiple_of_base = 1;
+  uint64_t result = 0;
   auto base = CharacterSet::size();
 
-  for (int i = 0; i < str.size(); i++) {
+  for (auto i = str.size(); i-- > 0;) {
     auto c = str[i];
     auto index = CharacterSet::chars.find(c);
+
     if (index == std::string::npos) {
       throw std::runtime_error("Invalid character in string");
     }
@@ -56,19 +58,24 @@ constexpr auto reverse_encoding(const std::string_view &str) {
     result += index * multiple_of_base;
     multiple_of_base *= base;
   }
+
   return result;
 }
 
 template <typename CharacterSet> struct Encoding {
+
   constexpr static auto apply(uint64_t value) {
     return apply_encoding<CharacterSet>(value);
   }
+
   constexpr static auto reverse(const std::string_view &str) {
     return reverse_encoding<CharacterSet>(str);
   }
+
 };
 
 typedef Encoding<Base62Encoding> Base62;
+typedef Encoding<HexEncoding> Hex;
 
 static_assert([] {
   constexpr auto random_numbers =
@@ -81,14 +88,32 @@ static_assert([] {
   return true;
 }());
 
+
+template <typename Encoding>
+constexpr auto test(uint64_t value) {
+  return Encoding::reverse(Encoding::apply(value)) == value;
+}
+
 static_assert(Base62::apply(0x0000) == "0");
 static_assert(Base62::apply(0x0001) == "1");
 static_assert(Base62::apply(0x000A) == "A");
 static_assert(Base62::apply(0x000f) == "F");
 static_assert(Base62::reverse("F") == 0x000f);
-static_assert(Base62::apply(Base62Encoding::size()) == "01");
 static_assert(Base62::apply(Base62Encoding::size() + 1) == "11");
-static_assert(Base62::apply(Base62Encoding::size() + 15) == "F1");
-static_assert(reverse_encoding<Base62Encoding>("01") == Base62Encoding::size());
-static_assert(reverse_encoding<Base62Encoding>("F1") ==
-              Base62Encoding::size() + 15);
+static_assert(Base62::apply(Base62Encoding::size() + 15) == "1F");
+
+static_assert(Hex::apply(0xEF11) == "EF11");
+static_assert(Hex::apply(0xdeadbeef) == "DEADBEEF");
+static_assert(Hex::apply(0xadded) == "ADDED");
+static_assert(Hex::apply(0xcadde) == "CADDE");
+
+static_assert(Hex::apply(0xFFFFFF) == "FFFFFF");
+static_assert(Hex::apply(0xFFFFFFFF) == "FFFFFFFF");
+static_assert(Hex::apply(0xFFFFFFFFFF) == "FFFFFFFFFF");
+static_assert(Hex::apply(0xFFFFFFFFFFFF) == "FFFFFFFFFFFF");
+static_assert(Hex::apply(0xFFFFFFFFFFFFFF) == "FFFFFFFFFFFFFF");
+static_assert(Hex::reverse("FFFFFFFFFF") == 0xFFFFFFFFFF);
+
+static_assert(test<Hex>(0xFFFFFFFFFFFFFFFF));
+static_assert(test<Base62>(0xFFFFFFFFFFFFFFFF));
+
