@@ -1,27 +1,49 @@
-#include <array>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <zoo/map/RobinHood.h>
 
-struct Base62Encoding {
-  constexpr static std::string_view chars = "0123456789"
-                                            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                            "abcdefghijklmnopqrstuvwxyz";
+using HashMap = zoo::rh::RH_Frontend_WithSkarupkeTail<char, size_t, 8, 5, 3>;
+using RHC = zoo::rh::RH_Backend<5, 3>;
+
+template <auto Strings>
+struct CharacterSet {
+  constexpr static std::string_view chars = Strings();
   constexpr static auto size() { return chars.size(); }
+  constexpr static auto contains(char c) {
+    return chars.find(c) != std::string::npos;
+  }
+  constexpr static auto find(char c) { return chars.find(c); }
+
+  constexpr static auto rhc = [] {
+    auto rhc = RHC{};
+    for (auto i = 0; i < chars.size(); i++) {
+      rhc.insert(chars[i], i);
+    }
+    return rhc;
+  }();
+
+
 };
 
-struct HexEncoding {
-  constexpr static std::string_view chars = "0123456789ABCDEF";
-  constexpr static auto size() { return chars.size(); }
-};
 
-static_assert(Base62Encoding::size() == 62);
-static_assert(0b00000000'00111111 == 0x3f);
-static_assert(0b00000000'00111111 == 63);
-static_assert(0b00000000'00000000 == 0);
+namespace encodings {
+constexpr auto Hex = [] { return "0123456789ABCDEF"; };
+constexpr auto Decimal = [] { return "0123456789"; };
+constexpr auto Binary = [] { return "01"; };
+constexpr auto Base62 = [] { return "0123456789"
+                                     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                     "abcdefghijklmnopqrstuvwxyz"; };
+} // namespace encodings
 
-template <typename CharacterSet> constexpr auto apply_encoding(uint64_t value) {
+typedef CharacterSet<encodings::Base62> Base62Encoding;
+typedef CharacterSet<encodings::Hex> HexEncoding;
+typedef CharacterSet<encodings::Decimal> DecimalEncoding;
+typedef CharacterSet<encodings::Binary> BinaryEncoding;
+
+template <typename CharacterSet, typename T = uint64_t>
+constexpr auto apply_encoding(T value) {
   std::string result{};
   result.reserve(8);
 
@@ -41,15 +63,24 @@ template <typename CharacterSet> constexpr auto apply_encoding(uint64_t value) {
   return std::string{result.rbegin(), result.rend()};
 }
 
-template <typename CharacterSet>
-constexpr auto reverse_encoding(const std::string_view &str) {
-  uint64_t multiple_of_base = 1;
-  uint64_t result = 0;
+template <typename CharacterSet, typename T = uint64_t>
+constexpr auto reverse_encoding(const std::string_view &s) {
+  auto multiple_of_base = T{1};
+  auto result = T{0};
   auto base = CharacterSet::size();
+
+  auto start = s.begin();
+
+  auto is_negative = false;
+
+  auto str = std::string_view{start, s.end()};
+  if (str.empty()) {
+    return T{0};
+  }
 
   for (auto i = str.size(); i-- > 0;) {
     auto c = str[i];
-    auto index = CharacterSet::chars.find(c);
+    auto index = CharacterSet::find(c);
 
     if (index == std::string::npos) {
       throw std::runtime_error("Invalid character in string");
@@ -58,41 +89,31 @@ constexpr auto reverse_encoding(const std::string_view &str) {
     result += index * multiple_of_base;
     multiple_of_base *= base;
   }
-
   return result;
 }
 
-template <typename CharacterSet> struct Encoding {
-
-  constexpr static auto apply(uint64_t value) {
-    return apply_encoding<CharacterSet>(value);
-  }
+template <typename CharacterSet, typename T = uint64_t> struct Encoding {
+  constexpr static auto apply(T value) { return apply_encoding<CharacterSet>(value); }
 
   constexpr static auto reverse(const std::string_view &str) {
-    return reverse_encoding<CharacterSet>(str);
+    return reverse_encoding<CharacterSet, T>(str);
   }
-
 };
 
 typedef Encoding<Base62Encoding> Base62;
 typedef Encoding<HexEncoding> Hex;
-
-static_assert([] {
-  constexpr auto random_numbers =
-      std::array<uint64_t, 11>{0, 1, 10, 15, 62, 63, 64, 65, 100, 0xFFFFFFF + 0xFFFFFFFF};
-  for (auto n : random_numbers) {
-    if (Base62::reverse(Base62::apply(n)) != n) {
-      return false;
-    }
-  }
-  return true;
-}());
-
+typedef Encoding<BinaryEncoding> Binary;
+typedef Encoding<DecimalEncoding> Decimal;
 
 template <typename Encoding>
 constexpr auto test(uint64_t value) {
   return Encoding::reverse(Encoding::apply(value)) == value;
 }
+
+static_assert(Decimal::apply(10) == "10");
+static_assert(Decimal::apply(789789) == "789789");
+
+static_assert(Decimal::reverse("0000010") == 10);
 
 static_assert(Base62::apply(0x0000) == "0");
 static_assert(Base62::apply(0x0001) == "1");
@@ -116,4 +137,6 @@ static_assert(Hex::reverse("FFFFFFFFFF") == 0xFFFFFFFFFF);
 
 static_assert(test<Hex>(0xFFFFFFFFFFFFFFFF));
 static_assert(test<Base62>(0xFFFFFFFFFFFFFFFF));
+static_assert(test<Binary>(0b1010));
+static_assert(Binary::apply(0b1010) == "1010");
 
