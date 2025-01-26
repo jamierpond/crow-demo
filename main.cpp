@@ -51,7 +51,7 @@ int main() {
   std::atomic<uint64_t> current_id = 0;
   using Map = ZooMap<FromType, ToType>;
 
-  auto links = std::unique_ptr<Map>{new Map{}};
+  auto links = std::unique_ptr<Map>{};
   auto links_mutex = std::shared_mutex{};
   auto id = current_id.load();
 

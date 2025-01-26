@@ -2,10 +2,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <zoo/map/RobinHood.h>
 
-using HashMap = zoo::rh::RH_Frontend_WithSkarupkeTail<char, size_t, 8, 5, 3>;
-using RHC = zoo::rh::RH_Backend<5, 3>;
 
 template <auto Strings>
 struct CharacterSet {
@@ -15,16 +12,6 @@ struct CharacterSet {
     return chars.find(c) != std::string::npos;
   }
   constexpr static auto find(char c) { return chars.find(c); }
-
-  constexpr static auto rhc = [] {
-    auto rhc = RHC{};
-    for (auto i = 0; i < chars.size(); i++) {
-      rhc.insert(chars[i], i);
-    }
-    return rhc;
-  }();
-
-
 };
 
 
@@ -55,12 +42,12 @@ constexpr auto apply_encoding(T value) {
 
   while (value > 0) {
     auto index = value % CharacterSet::size();
-    result.push_back(CharacterSet::chars[index]);
+    result.insert(result.begin(), CharacterSet::chars[index]);
     value /= CharacterSet::size();
     multiple_of_base *= CharacterSet::size();
   }
 
-  return std::string{result.rbegin(), result.rend()};
+  return result;
 }
 
 template <typename CharacterSet, typename T = uint64_t>
@@ -68,10 +55,7 @@ constexpr auto reverse_encoding(const std::string_view &s) {
   auto multiple_of_base = T{1};
   auto result = T{0};
   auto base = CharacterSet::size();
-
   auto start = s.begin();
-
-  auto is_negative = false;
 
   auto str = std::string_view{start, s.end()};
   if (str.empty()) {
@@ -134,6 +118,8 @@ static_assert(Hex::apply(0xFFFFFFFFFF) == "FFFFFFFFFF");
 static_assert(Hex::apply(0xFFFFFFFFFFFF) == "FFFFFFFFFFFF");
 static_assert(Hex::apply(0xFFFFFFFFFFFFFF) == "FFFFFFFFFFFFFF");
 static_assert(Hex::reverse("FFFFFFFFFF") == 0xFFFFFFFFFF);
+static_assert(Hex::reverse("4A7BDF") == 0x4a7bdf);
+static_assert(Decimal::reverse("6789") == 6789);
 
 static_assert(test<Hex>(0xFFFFFFFFFFFFFFFF));
 static_assert(test<Base62>(0xFFFFFFFFFFFFFFFF));
