@@ -14,12 +14,11 @@ template <auto Strings> struct CharacterSet {
   constexpr static auto contains(char c) {
     return chars.find(c) != std::string::npos;
   }
+
   static_assert(size() > 0, "Character set must not be empty");
   static_assert([](){
       std::unordered_set<char> set{};
-      for (auto c : chars) {
-        set.insert(c);
-      }
+      for (auto c : chars) { set.insert(c); }
       return set.size() == chars.size();
   }, "Character set must not contain duplicates");
 };
@@ -49,12 +48,10 @@ constexpr auto apply_encoding(T value) {
   std::string result{};
   result.reserve(8);
 
-  if (value == 0) {
-    return std::string{CharacterSet::zero_char()};
-  }
+  constexpr auto zero = CharacterSet::zero_char();
+  if (value == 0) { return std::string{zero}; }
 
   auto multiple_of_base = 1;
-
   while (value > 0) {
     auto index = value % CharacterSet::size();
     result.insert(result.begin(), CharacterSet::chars[index]);
@@ -65,25 +62,23 @@ constexpr auto apply_encoding(T value) {
   return result;
 }
 
+constexpr auto throw_if(auto condition, const std::string &message) {
+  if (condition) { throw std::runtime_error(message); }
+}
+
 template <typename CharacterSet, typename T = uint64_t>
 constexpr auto reverse_encoding(const std::string_view &str) {
-  auto multiple_of_base = T{1};
-  auto result = T{0};
+  auto
+     multiple_of_base = T{1},
+     result = T{0};
   auto base = CharacterSet::size();
+  if (str.empty()) { return T{0}; }
 
-  if (str.empty()) {
-    return T{0};
-  }
-
-  for (auto i = str.size(); i-- > 0;) {
-    auto c = str[i];
-    auto index = CharacterSet::find(c);
-
-    if (index == std::string::npos) {
-      throw std::runtime_error("Invalid character in string");
-    }
-
+  for (auto i = str.size() - 1;;) {
+    auto index = CharacterSet::find(str[i]);
+    throw_if(index == std::string::npos, "Invalid character in string");
     result += index * multiple_of_base;
+    if (i-- <= 0) { break; }
     multiple_of_base *= base;
   }
   return result;

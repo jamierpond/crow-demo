@@ -1,4 +1,5 @@
-#include "catch2/catch_test_macros.hpp"
+#include <limits>
+#include <string>
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch_all.hpp>
 #include "../encoding.hpp"
@@ -53,8 +54,8 @@ static_assert(Hex::apply(0xFFFFFFFFFFFF) == "FFFFFFFFFFFF");
 static_assert(Hex::apply(0xFFFFFFFFFFFFFF) == "FFFFFFFFFFFFFF");
 static_assert(Hex::reverse("FFFFFFFFFF") == 0xFFFFFFFFFF);
 static_assert(Hex::reverse("4A7BDF") == 0x4a7bdf);
-static_assert(test<Hex>(0xFFFFFFFFFFFFFFFF));
-static_assert(test<Base62>(0xFFFFFFFFFFFFFFFF));
+static_assert(test<Hex>(0xFFFFFFFFFFFFFFF));
+static_assert(test<Base62>(0xFFFFFFFFFFFFFF));
 static_assert(test<Binary>(0b1010));
 static_assert(Binary::apply(0b1010) == "1010");
 
@@ -66,6 +67,11 @@ static_assert(SmileyFaces::apply(33) == "x3");
 static_assert(fuzz_test<Base62>(15));
 static_assert(fuzz_test<Base62>(15));
 static_assert(fuzz_test<Binary>(15));
+
+// you're going to get a wrong result if you have strings this long
+static_assert(Binary::reverse("000000000000000000000000000000000000000000000000000000000000000000000") == 0);
+static_assert(Binary::reverse("000000000000000000000000000000000000000000000000000000000000000000001") == 1);
+static_assert(Hex::reverse   ("0000000000000000000000000000000000000000000000000000000000000000000F") == 15);
 
 TEST_CASE("fuzz test", "[fuzz]") {
   REQUIRE(fuzz_test<Base62>(1'000'000));
