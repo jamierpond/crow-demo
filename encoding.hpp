@@ -1,3 +1,4 @@
+#include <bit>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
@@ -70,13 +71,13 @@ constexpr auto throw_if(auto condition, const std::string &message) {
 }
 
 template <typename CharacterSet, typename T = uint64_t, bool check_overflow = false, bool check_valid_chars = false>
-constexpr auto reverse_encoding(const std::string_view &str) {
+constexpr T reverse_encoding(const std::string_view &str) {
   if (str.empty()) { return T{0}; }
 
   auto
-     multiple_of_base = T{1},
      result = T{0},
-     base = CharacterSet::size();
+     multiple_of_base = T{1},
+     base = T{CharacterSet::size()};
 
   for (auto i = str.size() - 1;;) {
     auto index = CharacterSet::find(str[i]);
@@ -92,11 +93,19 @@ constexpr auto reverse_encoding(const std::string_view &str) {
 
 template <typename CharacterSet, typename T = uint64_t> struct Encoder {
   typedef T type;
-  constexpr static auto apply(T value) {
-    return apply_encoding<CharacterSet>(value);
+
+  template<typename FromType = T>
+  constexpr static auto encode(FromType value) {
+    static_assert(sizeof(FromType) == sizeof(T));
+    auto v = std::bit_cast<T>(value);
+    return apply_encoding<CharacterSet, T>(v);
   }
-  constexpr static auto reverse(const std::string_view &str) {
-    return reverse_encoding<CharacterSet, T>(str);
+
+  template <typename ToType = T>
+  constexpr static auto decode(const std::string_view &str) {
+    static_assert(sizeof(ToType) == sizeof(T));
+    T result = reverse_encoding<CharacterSet, T>(str);
+    return std::bit_cast<ToType>(result);
   }
 };
 

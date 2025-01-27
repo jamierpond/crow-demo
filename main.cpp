@@ -80,7 +80,7 @@ int main() {
         std::lock_guard<std::shared_mutex> lock{links_mutex};
         links->insert(std::pair{id, link});
 
-        auto current_string = Base62::apply(id);
+        auto current_string = Base62::encode(id);
         auto short_link = std::string{OUR_DOMAIN} + current_string;
 
         return crow::response{Json{{"short_link", short_link}}};
@@ -92,7 +92,7 @@ int main() {
   CROW_ROUTE(app, "/<string>")
   ([&](const crow::request &req, const std::string &hex) {
     try {
-      auto id = Base62::reverse(hex);
+      auto id = Base62::decode(hex);
       std::shared_lock<std::shared_mutex> lock{links_mutex};
       auto it = links->find(id);
 
