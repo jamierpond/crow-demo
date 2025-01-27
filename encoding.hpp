@@ -5,8 +5,6 @@
 #include <string_view>
 #include <unordered_set>
 
-namespace char_sets {
-
 template <auto Strings> struct CharacterSet {
   constexpr static std::string_view chars = Strings();
   constexpr static auto size() { return chars.size(); }
@@ -23,26 +21,6 @@ template <auto Strings> struct CharacterSet {
       return set.size() == chars.size();
   }, "Character set must not contain duplicates");
 };
-
-namespace definitions {
-constexpr auto Hex = [] { return "0123456789ABCDEF"; };
-constexpr auto SmileyFaces = [] { return "):(3Dx"; };
-constexpr auto Decimal = [] { return "0123456789"; };
-constexpr auto Binary = [] { return "01"; };
-constexpr auto Base62 = [] {
-  return "0123456789"
-         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-         "abcdefghijklmnopqrstuvwxyz";
-};
-} // namespace definitions
-
-typedef CharacterSet<definitions::Base62> Base62Encoding;
-typedef CharacterSet<definitions::SmileyFaces> SmileyFacesEncoding;
-typedef CharacterSet<definitions::Hex> HexEncoding;
-typedef CharacterSet<definitions::Decimal> DecimalEncoding;
-typedef CharacterSet<definitions::Binary> BinaryEncoding;
-
-} // namespace char_sets
 
 template <typename CharacterSet, typename T = uint64_t>
 constexpr auto apply_encoding(T value) {
@@ -108,6 +86,30 @@ template <typename CharacterSet, typename T = uint64_t> struct Encoder {
     return std::bit_cast<ToType>(result);
   }
 };
+
+// This is basically user code from here on ====================================
+
+namespace char_sets {
+namespace definitions {
+constexpr auto Hex = [] { return "0123456789ABCDEF"; };
+constexpr auto SmileyFaces = [] { return "):(3Dx"; };
+constexpr auto Decimal = [] { return "0123456789"; };
+constexpr auto Binary = [] { return "01"; };
+constexpr auto Base62 = [] {
+  return "0123456789"
+         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+         "abcdefghijklmnopqrstuvwxyz";
+};
+} // namespace definitions
+} // namespace char_sets
+
+namespace char_sets {
+typedef CharacterSet<definitions::Base62> Base62Encoding;
+typedef CharacterSet<definitions::SmileyFaces> SmileyFacesEncoding;
+typedef CharacterSet<definitions::Hex> HexEncoding;
+typedef CharacterSet<definitions::Decimal> DecimalEncoding;
+typedef CharacterSet<definitions::Binary> BinaryEncoding;
+} // namespace char_sets
 
 typedef Encoder<char_sets::Base62Encoding> Base62;
 typedef Encoder<char_sets::SmileyFacesEncoding> SmileyFaces;

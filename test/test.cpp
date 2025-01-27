@@ -100,6 +100,9 @@ auto test_foo() {
   }
 }
 
+// maths works!
+static_assert(Hex::encode<double>(4.24200000000000017053025658242E1) == "404535C28F5C28F6");
+
 TEST_CASE("types", "[fuzz]") {
   test_foo<float, Encoder<char_sets::HexEncoding, uint32_t>>();
   test_foo<double, Encoder<char_sets::HexEncoding, uint64_t>>();
