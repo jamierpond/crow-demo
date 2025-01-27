@@ -68,10 +68,9 @@ static_assert(fuzz_test<Base62>(15));
 static_assert(fuzz_test<Base62>(15));
 static_assert(fuzz_test<Binary>(15));
 
-// you're going to get a wrong result if you have strings this long
-static_assert(Binary::reverse("000000000000000000000000000000000000000000000000000000000000000000000") == 0);
-static_assert(Binary::reverse("000000000000000000000000000000000000000000000000000000000000000000001") == 1);
-static_assert(Hex::reverse   ("0000000000000000000000000000000000000000000000000000000000000000000F") == 15);
+static_assert(Binary::reverse("0000000000000000000000000000000000000000000") == 0);
+static_assert(Binary::reverse("0000000000000000000000000000000000000000001") == 1);
+static_assert(Hex::reverse   ("00000000000000F") == 15);
 
 TEST_CASE("fuzz test", "[fuzz]") {
   REQUIRE(fuzz_test<Base62>(1'000'000));

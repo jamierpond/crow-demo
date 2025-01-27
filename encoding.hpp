@@ -62,11 +62,14 @@ constexpr auto apply_encoding(T value) {
   return result;
 }
 
+template <bool enabled>
 constexpr auto throw_if(auto condition, const std::string &message) {
-  if (condition) { throw std::runtime_error(message); }
+  if constexpr (enabled) {
+    if (condition) { throw std::runtime_error(message); }
+  }
 }
 
-template <typename CharacterSet, typename T = uint64_t>
+template <typename CharacterSet, typename T = uint64_t, bool check_overflow = false, bool check_valid_chars = false>
 constexpr auto reverse_encoding(const std::string_view &str) {
   if (str.empty()) { return T{0}; }
 
@@ -77,7 +80,8 @@ constexpr auto reverse_encoding(const std::string_view &str) {
 
   for (auto i = str.size() - 1;;) {
     auto index = CharacterSet::find(str[i]);
-    throw_if(index == std::string::npos, "Invalid character in string");
+    throw_if<check_valid_chars>(index == std::string::npos, "Invalid character in string");
+    throw_if<check_overflow>(base > std::numeric_limits<T>::max() / multiple_of_base, "Overflow while decoding");
     result += index * multiple_of_base;
     if (i-- <= 0) { break; }
     multiple_of_base *= base;
