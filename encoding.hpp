@@ -68,11 +68,12 @@ constexpr auto throw_if(auto condition, const std::string &message) {
 
 template <typename CharacterSet, typename T = uint64_t>
 constexpr auto reverse_encoding(const std::string_view &str) {
+  if (str.empty()) { return T{0}; }
+
   auto
      multiple_of_base = T{1},
-     result = T{0};
-  auto base = CharacterSet::size();
-  if (str.empty()) { return T{0}; }
+     result = T{0},
+     base = CharacterSet::size();
 
   for (auto i = str.size() - 1;;) {
     auto index = CharacterSet::find(str[i]);
@@ -81,6 +82,7 @@ constexpr auto reverse_encoding(const std::string_view &str) {
     if (i-- <= 0) { break; }
     multiple_of_base *= base;
   }
+
   return result;
 }
 
