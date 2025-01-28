@@ -1,7 +1,10 @@
+#include <random>
+#include <iostream>
 #include <cstdint>
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch_all.hpp>
 #include "../encoding.hpp"
+
 
 template <typename Encoding, typename FromType>
 constexpr auto test(FromType value) {
@@ -83,8 +86,6 @@ TEST_CASE("fuzz test", "[fuzz]") {
   REQUIRE(fuzz_test<SmileyFaces>(n));
 };
 
-#include <random>
-#include <iostream>
 
 template <typename FromType, typename Encoder>
 auto test_foo() {
@@ -104,6 +105,6 @@ auto test_foo() {
 static_assert(Hex::encode<double>(4.24200000000000017053025658242E1) == "404535C28F5C28F6");
 
 TEST_CASE("types", "[fuzz]") {
-  test_foo<float, Encoder<char_sets::HexEncoding, uint32_t>>();
-  test_foo<double, Encoder<char_sets::HexEncoding, uint64_t>>();
+  test_foo<float, StringEncoder<char_sets::HexEncoding, uint32_t>>();
+  test_foo<double, StringEncoder<char_sets::HexEncoding, uint64_t>>();
 }

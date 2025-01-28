@@ -48,7 +48,12 @@ constexpr auto throw_if(auto condition, const std::string &message) {
   }
 }
 
-template <typename CharacterSet, typename T = uint64_t, bool check_overflow = false, bool check_valid_chars = false>
+template <
+  typename CharacterSet,
+  typename T = uint64_t,
+  bool check_overflow = false,
+  bool check_valid_chars = false
+>
 constexpr T reverse_encoding(const std::string_view &str) {
   if (str.empty()) { return T{0}; }
 
@@ -69,7 +74,7 @@ constexpr T reverse_encoding(const std::string_view &str) {
   return result;
 }
 
-template <typename CharacterSet, typename T = uint64_t> struct Encoder {
+template <typename CharacterSet, typename T = uint64_t> struct StringEncoder {
   typedef T type;
 
   template<typename FromType = T>
@@ -100,10 +105,9 @@ constexpr auto Base62 = [] {
          "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
          "abcdefghijklmnopqrstuvwxyz";
 };
-} // namespace definitions
-} // namespace char_sets
 
-namespace char_sets {
+} // namespace definitions
+
 typedef CharacterSet<definitions::Base62> Base62Encoding;
 typedef CharacterSet<definitions::SmileyFaces> SmileyFacesEncoding;
 typedef CharacterSet<definitions::Hex> HexEncoding;
@@ -111,8 +115,8 @@ typedef CharacterSet<definitions::Decimal> DecimalEncoding;
 typedef CharacterSet<definitions::Binary> BinaryEncoding;
 } // namespace char_sets
 
-typedef Encoder<char_sets::Base62Encoding> Base62;
-typedef Encoder<char_sets::SmileyFacesEncoding> SmileyFaces;
-typedef Encoder<char_sets::HexEncoding> Hex;
-typedef Encoder<char_sets::DecimalEncoding> Decimal;
-typedef Encoder<char_sets::BinaryEncoding> Binary;
+typedef StringEncoder<char_sets::Base62Encoding> Base62;
+typedef StringEncoder<char_sets::SmileyFacesEncoding> SmileyFaces;
+typedef StringEncoder<char_sets::HexEncoding> Hex;
+typedef StringEncoder<char_sets::DecimalEncoding> Decimal;
+typedef StringEncoder<char_sets::BinaryEncoding> Binary;
